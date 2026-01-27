@@ -1,0 +1,71 @@
+import streamlit as st
+import pandas as pd
+import joblib
+import numpy as np
+
+
+st.set_page_config(page_title="Dự báo Phá sản Doanh nghiệp", layout="wide")
+st.title("💰 AI Đánh giá Sức khỏe Tài chính Doanh nghiệp")
+st.write("Hệ thống sử dụng Machine Learning (XGBoost) để dự đoán nguy cơ phá sản.")
+@st.cache_resource
+def load_artifacts():
+    try:
+        artifacts = joblib.load('bankruptcy_model.pkl')
+        return artifacts
+    except Exception as e:
+        st.error(f"Không tìm thấy file 'bankruptcy_model.pkl'. Hãy chắc chắn nó ở cùng thư mục với app.py! Lỗi: {e}")
+        return None
+
+data = load_artifacts()
+
+if data:
+    model = data['model']
+    imputer = data['imputer']
+    scaler = data['scaler'] 
+    feature_names = data['feature_names']
+    st.sidebar.header("📥 Nhập dữ liệu")
+    option = st.sidebar.radio("Chọn cách nhập:", ["Upload file Excel/CSV", "Nhập thủ công (Demo)"])
+    input_df = None
+    if option == "Upload file Excel/CSV":
+        uploaded_file = st.sidebar.file_uploader("Tải lên file dữ liệu", type=["csv", "xlsx"])
+        if uploaded_file:
+            try:
+                if uploaded_file.name.endswith('.csv'):
+                    input_df = pd.read_csv(uploaded_file)
+                else:
+                    input_df = pd.read_excel(uploaded_file)
+                st.success("Tải file thành công!")
+            except:
+                st.error("Lỗi định dạng file!")
+
+    else:
+        st.info("Chế độ Demo: Tự sinh dữ liệu ngẫu nhiên giả lập 1 công ty.")
+        if st.sidebar.button("Sinh dữ liệu mẫu"):
+            random_data = np.random.rand(1, len(feature_names))
+            input_df = pd.DataFrame(random_data, columns=feature_names)
+            st.write("Dữ liệu đầu vào (Mô phỏng):")
+            st.dataframe(input_df)
+    if input_df is not None:
+        st.subheader("📊 Kết quả Phân tích")
+        
+        if st.button("Chạy Dự báo ngay"):
+            try:
+                X_input = input_df[feature_names]
+                X_filled = imputer.transform(X_input)
+                X_scaled = scaler.transform(X_filled)
+                prediction = model.predict(X_scaled) 
+                proba = model.predict_proba(X_scaled)[:, 1]
+                results = input_df.copy()
+                results['Dự đoán'] = ["NGUY CƠ PHÁ SẢN" if p == 1 else "An toàn" for p in prediction]
+                results['Tỉ lệ rủi ro (%)'] = (proba * 100).round(2)
+                def color_danger(val):
+                    color = 'red' if val == "NGUY CƠ PHÁ SẢN" else 'green'
+                    return f'color: {color}; font-weight: bold'
+
+                st.dataframe(results.style.applymap(color_danger, subset=['Dự đoán']))
+                risk_count = np.sum(prediction)
+                st.metric("Số công ty báo động đỏ", int(risk_count))
+            except KeyError as e:
+                st.error(f"File của bạn thiếu cột dữ liệu quan trọng: {e}")
+            except Exception as e:
+                st.error(f"Có lỗi xảy ra: {e}")
