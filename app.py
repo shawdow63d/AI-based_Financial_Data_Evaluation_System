@@ -2,41 +2,77 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
+import json
 
-# Cấu hình trang
-st.set_page_config(page_title="Dự báo Phá sản Doanh nghiệp", layout="wide")
+# ==============================
+# CẤU HÌNH TRANG
+# ==============================
+st.set_page_config(page_title="AI Đánh giá Tài chính Doanh nghiệp", layout="wide")
 st.title("💰 AI Đánh giá Sức khỏe Tài chính Doanh nghiệp")
-st.write("Hệ thống sử dụng Machine Learning (XGBoost) để dự đoán nguy cơ phá sản.")
+st.write("Hệ thống sử dụng Machine Learning để dự đoán nguy cơ phá sản và tăng trưởng doanh nghiệp.")
 
-# Load model và các công cụ
+# ==============================
+# LOAD MODEL
+# ==============================
 @st.cache_resource
 def load_artifacts():
     try:
-        artifacts = joblib.load('bankruptcy_model.pkl')
-        return artifacts
+        # ----- Model Phá sản -----
+        bankruptcy_data = joblib.load("bankruptcy_model.pkl")
+
+        # ----- Model Tăng trưởng -----
+        growth_model = joblib.load("model_xgb.pkl")
+        growth_imputer = joblib.load("imputer.pkl")
+        growth_scaler = joblib.load("scaler.pkl")
+
+        with open("features_list.json", "r") as f:
+            growth_features = json.load(f)
+
+        return {
+            "bankruptcy": bankruptcy_data,
+            "growth_model": growth_model,
+            "growth_imputer": growth_imputer,
+            "growth_scaler": growth_scaler,
+            "growth_features": growth_features
+        }
+
     except Exception as e:
-        st.error(f"Không tìm thấy file 'bankruptcy_model.pkl'. Hãy chắc chắn nó ở cùng thư mục với app.py! Lỗi: {e}")
+        st.error(f"Lỗi load model: {e}")
         return None
+
 
 data = load_artifacts()
 
+# ==============================
+# NẾU LOAD OK
+# ==============================
 if data:
-    model = data['model']
-    imputer = data['imputer']
-    scaler = data['scaler'] 
-    feature_names = data['feature_names']
 
-    # Sidebar nhập liệu
+    # ----- Phá sản -----
+    bankruptcy_model = data["bankruptcy"]["model"]
+    bankruptcy_imputer = data["bankruptcy"]["imputer"]
+    bankruptcy_scaler = data["bankruptcy"]["scaler"]
+    bankruptcy_features = data["bankruptcy"]["feature_names"]
+
+    # ----- Tăng trưởng -----
+    growth_model = data["growth_model"]
+    growth_imputer = data["growth_imputer"]
+    growth_scaler = data["growth_scaler"]
+    growth_features = data["growth_features"]
+
+    # ==============================
+    # SIDEBAR
+    # ==============================
     st.sidebar.header("📥 Nhập dữ liệu")
     option = st.sidebar.radio("Chọn cách nhập:", ["Upload file Excel/CSV", "Nhập thủ công (Demo)"])
-    
+
     input_df = None
 
     if option == "Upload file Excel/CSV":
         uploaded_file = st.sidebar.file_uploader("Tải lên file dữ liệu", type=["csv", "xlsx"])
         if uploaded_file:
             try:
-                if uploaded_file.name.endswith('.csv'):
+                if uploaded_file.name.endswith(".csv"):
                     input_df = pd.read_csv(uploaded_file)
                 else:
                     input_df = pd.read_excel(uploaded_file)
@@ -45,59 +81,69 @@ if data:
                 st.error("Lỗi định dạng file!")
 
     else:
-        st.info("Chế độ Demo: Tự sinh dữ liệu ngẫu nhiên giả lập 1 công ty.")
+        st.info("Chế độ Demo: Sinh dữ liệu ngẫu nhiên.")
         if st.sidebar.button("Sinh dữ liệu mẫu"):
-            random_data = np.random.rand(1, len(feature_names))
-            input_df = pd.DataFrame(random_data, columns=feature_names)
-            st.write("Dữ liệu đầu vào (Mô phỏng):")
+            random_data = np.random.rand(1, len(bankruptcy_features))
+            input_df = pd.DataFrame(random_data, columns=bankruptcy_features)
             st.dataframe(input_df)
 
-    # Xử lý và Hiển thị
+    # ==============================
+    # XỬ LÝ DỰ ĐOÁN
+    # ==============================
     if input_df is not None:
-        st.subheader("📊 Kết quả Phân tích")
-        
-        if st.button("Chạy Dự báo ngay"):
+
+        if st.button("🚀 Chạy Phân tích"):
+
             try:
-                # 1. Tiền xử lý
-                X_input = input_df[feature_names]
-                X_filled = imputer.transform(X_input)
-                X_scaled = scaler.transform(X_filled)
-                
-                # 2. Dự báo
-                prediction = model.predict(X_scaled) 
-                proba = model.predict_proba(X_scaled)[:, 1]
-                
-                # 3. Gán kết quả
                 results = input_df.copy()
-                results['Dự đoán'] = ["NGUY CƠ PHÁ SẢN" if p == 1 else "An toàn" for p in prediction]
-                results['Tỉ lệ rủi ro (%)'] = (proba * 100).round(2)
 
-                # --- ĐOẠN CODE ĐÃ SỬA THEO CÁCH 1 (TỐI ƯU HIỆU NĂNG) ---
-                
-                # A. Tách riêng danh sách nguy hiểm
-                risky_df = results[results['Dự đoán'] == 'NGUY CƠ PHÁ SẢN']
+                # =====================================================
+                # 1️⃣ PHÂN TÍCH PHÁ SẢN
+                # =====================================================
+                X_bank = input_df[bankruptcy_features]
+                X_bank_filled = bankruptcy_imputer.transform(X_bank)
+                X_bank_scaled = bankruptcy_scaler.transform(X_bank_filled)
+
+                prediction = bankruptcy_model.predict(X_bank_scaled)
+                proba = bankruptcy_model.predict_proba(X_bank_scaled)[:, 1]
+
+                results["Dự đoán Phá sản"] = [
+                    "NGUY CƠ PHÁ SẢN" if p == 1 else "An toàn"
+                    for p in prediction
+                ]
+                results["Tỉ lệ rủi ro (%)"] = (proba * 100).round(2)
+
+                # =====================================================
+                # 2️⃣ PHÂN TÍCH TĂNG TRƯỞNG
+                # =====================================================
+                X_growth = input_df[growth_features]
+                X_growth_filled = growth_imputer.transform(X_growth)
+                X_growth_scaled = growth_scaler.transform(X_growth_filled)
+
+                growth_prediction = growth_model.predict(X_growth_scaled)
+
+                results["Dự đoán Tăng trưởng (%)"] = (
+                    np.array(growth_prediction).reshape(-1) * 100
+                ).round(2)
+
+                # =====================================================
+                # HIỂN THỊ
+                # =====================================================
+                st.subheader("📊 Kết quả Phân tích Tổng hợp")
+
                 risk_count = np.sum(prediction)
-
-                # B. Hiển thị số lượng
                 st.metric("Số công ty báo động đỏ", int(risk_count))
 
-                # C. Chỉ tô màu danh sách nguy hiểm (nhỏ và nhẹ)
                 def color_danger(val):
-                    return 'color: red; font-weight: bold' if val == "NGUY CƠ PHÁ SẢN" else 'color: green'
+                    if val == "NGUY CƠ PHÁ SẢN":
+                        return "color: red; font-weight: bold"
+                    return "color: green"
 
-                st.subheader("⚠️ Danh sách Doanh nghiệp Báo động đỏ")
-                if not risky_df.empty:
-                    st.dataframe(risky_df.style.applymap(color_danger, subset=['Dự đoán']))
-                else:
-                    st.success("Tuyệt vời! Không tìm thấy doanh nghiệp nào có nguy cơ phá sản trong file này.")
-
-                # D. Hiển thị bảng gốc dạng thường (xử lý được file lớn không bị lỗi)
-                st.subheader("📋 Dữ liệu toàn bộ (Chi tiết)")
-                st.dataframe(results) 
-                
-                # --- HẾT PHẦN SỬA ---
+                st.dataframe(
+                    results.style.applymap(color_danger, subset=["Dự đoán Phá sản"])
+                )
 
             except KeyError as e:
-                st.error(f"File của bạn thiếu cột dữ liệu quan trọng: {e}")
+                st.error(f"Thiếu cột dữ liệu: {e}")
             except Exception as e:
-                st.error(f"Có lỗi xảy ra: {e}")
+                st.error(f"Lỗi khi dự đoán: {e}")
