@@ -5,7 +5,7 @@ import numpy as np
 
 # Cấu hình trang
 st.set_page_config(page_title="Dự báo Phá sản Doanh nghiệp", layout="wide")
-st.title("💰 AI Đánh giá Sức khỏe Tài chính Doanh nghiệp")
+st.title("AI Đánh giá Sức khỏe Tài chính Doanh nghiệp")
 st.write("Hệ thống sử dụng Machine Learning (XGBoost) để dự đoán nguy cơ phá sản.")
 
 # Load model và các công cụ
@@ -161,4 +161,5 @@ if growth_model:
 
             except Exception as e:
                 st.error(f"Lỗi tăng trưởng: {e}")
+
 
