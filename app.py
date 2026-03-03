@@ -119,9 +119,9 @@ st.header("📈 AI Dự báo Tăng trưởng Doanh nghiệp")
 @st.cache_resource
 def load_growth_artifacts():
     try:
-        return joblib.load("growth_model.pkl")
+        return joblib.load("model_xgb.pkl")
     except Exception as e:
-        st.error(f"Không tìm thấy file 'growth_model.pkl'. Lỗi: {e}")
+        st.error(f"Không tìm thấy file 'model_xgb.pkl'. Lỗi: {e}")
         return None
 
 growth_data = load_growth_artifacts()
@@ -190,3 +190,4 @@ if growth_data:
                 st.error(f"Thiếu cột cho model tăng trưởng: {e}")
             except Exception as e:
                 st.error(f"Lỗi dự báo tăng trưởng: {e}")
+
