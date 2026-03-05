@@ -283,7 +283,12 @@ if page == "Growth Prediction":
 
                 X = df.copy()
 
-                required = list(growth_imputer.feature_names_in_)
+               required = list(growth_imputer.feature_names_in_)
+
+                # thêm cột còn thiếu
+                for col in required:
+                    if col not in X.columns:
+                        X[col] = np.nan
 
                 X = X[required]
 
@@ -323,3 +328,4 @@ if page == "Growth Prediction":
 
             except Exception as e:
                 st.error(f"Prediction error: {e}")
+
