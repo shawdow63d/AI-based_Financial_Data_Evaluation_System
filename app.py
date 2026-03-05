@@ -12,36 +12,27 @@ st.set_page_config(page_title="AI Financial Dashboard", layout="wide")
 st.markdown("""
 <style>
 
-.main {
-    background-color: #0E1117;
+.stApp{
+    background: linear-gradient(135deg,#0f172a,#020617);
 }
 
-.block-container {
-    padding-top: 2rem;
-}
-
-h1, h2, h3 {
-    color: white;
-}
-
-[data-testid="stMetricValue"] {
-    font-size: 40px;
-}
-
-[data-testid="stMetricLabel"] {
-    font-size: 18px;
-    color: #A0AEC0;
-}
-
-[data-testid="metric-container"] {
+.card{
     background: #111827;
-    border: 1px solid #1F2937;
-    padding: 20px;
-    border-radius: 12px;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.4);
+    text-align:center;
 }
 
-.stDataFrame {
-    border-radius: 10px;
+.metric-value{
+    font-size:40px;
+    font-weight:bold;
+    color:#38bdf8;
+}
+
+.metric-label{
+    font-size:16px;
+    color:#94a3b8;
 }
 
 </style>
@@ -340,5 +331,6 @@ if page == "Growth Prediction":
 
             except Exception as e:
                 st.error(f"Prediction error: {e}")
+
 
 
