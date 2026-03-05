@@ -7,3 +7,6 @@ xgboost
 openpyxl
 tensorflow
 dill
+matplotlib
+scipy
+openpyxl
