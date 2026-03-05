@@ -11,9 +11,7 @@ st.set_page_config(page_title="AI Financial Dashboard", layout="wide")
 
 st.title("AI Financial Analysis Dashboard")
 
-# =====================================================
 # LOAD MODELS
-# =====================================================
 
 @st.cache_resource
 def load_bankruptcy():
@@ -43,9 +41,7 @@ def load_growth():
 bank_model,bank_scaler,bank_imputer,bank_features = load_bankruptcy()
 growth_model,growth_scaler,growth_imputer = load_growth()
 
-# =====================================================
 # SIDEBAR
-# =====================================================
 
 st.sidebar.title("Navigation")
 
@@ -54,9 +50,7 @@ page = st.sidebar.radio(
     ["Bankruptcy Prediction","Growth Prediction"]
 )
 
-# =====================================================
-# BANKRUPTCY PAGE (GIỮ NGUYÊN)
-# =====================================================
+# BANKRUPTCY
 
 if page == "Bankruptcy Prediction":
 
@@ -181,9 +175,7 @@ if page == "Bankruptcy Prediction":
             except Exception as e:
                 st.error(f"Prediction error: {e}")
 
-# =====================================================
-# GROWTH PAGE
-# =====================================================
+# GROWTH
 
 if page == "Growth Prediction":
 
@@ -273,9 +265,6 @@ if page == "Growth Prediction":
                 results = df.copy()
                 results["Growth Prediction"] = pred
 
-                # =========================
-                # STATS
-                # =========================
 
                 col1,col2,col3 = st.columns(3)
 
@@ -283,10 +272,7 @@ if page == "Growth Prediction":
                 col2.metric("Max Growth",round(results["Growth Prediction"].max(),4))
                 col3.metric("Min Growth",round(results["Growth Prediction"].min(),4))
 
-                # =========================
-                # PIE CHART
-                # =========================
-
+                
                 results["Growth Level"] = pd.cut(
                     results["Growth Prediction"],
                     bins=[0,0.02,0.04,1],
@@ -302,10 +288,6 @@ if page == "Growth Prediction":
 
                 st.plotly_chart(fig,use_container_width=True)
 
-                # =========================
-                # RESULTS
-                # =========================
-
                 st.subheader("Prediction Results")
 
                 st.dataframe(results)
@@ -320,3 +302,4 @@ if page == "Growth Prediction":
 
             except Exception as e:
                 st.error(f"Prediction error: {e}")
+
