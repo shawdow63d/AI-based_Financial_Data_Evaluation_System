@@ -98,19 +98,11 @@ if page == "Bankruptcy Prediction":
                 results["Prediction"] = np.where(pred==1,"Bankrupt","Safe")
                 results["Risk %"] = (prob*100).round(2)
 
-                # =====================
-                # METRICS
-                # =====================
-
                 col1,col2,col3 = st.columns(3)
 
                 col1.metric("Total Companies",len(results))
                 col2.metric("Bankrupt Risk",(pred==1).sum())
                 col3.metric("Average Risk %",round(results["Risk %"].mean(),2))
-
-                # =====================
-                # BAR CHART
-                # =====================
 
                 st.subheader("Bankruptcy Risk Distribution")
 
@@ -120,10 +112,6 @@ if page == "Bankruptcy Prediction":
                 )
 
                 st.plotly_chart(fig,use_container_width=True)
-
-                # =====================
-                # HISTOGRAM
-                # =====================
 
                 st.subheader("Risk Score Distribution")
 
@@ -135,10 +123,6 @@ if page == "Bankruptcy Prediction":
 
                 st.plotly_chart(fig2,use_container_width=True)
 
-                # =====================
-                # PIE CHART
-                # =====================
-
                 st.subheader("Risk Percentage Pie Chart")
 
                 fig3 = px.pie(
@@ -148,10 +132,6 @@ if page == "Bankruptcy Prediction":
                 )
 
                 st.plotly_chart(fig3,use_container_width=True)
-
-                # =====================
-                # BOX PLOT
-                # =====================
 
                 st.subheader("Risk % Box Plot")
 
@@ -163,19 +143,13 @@ if page == "Bankruptcy Prediction":
 
                 st.plotly_chart(fig4,use_container_width=True)
 
-                # =====================
-                # FEATURE IMPORTANCE
-                # =====================
-
                 if hasattr(bank_model,"feature_importances_"):
 
                     st.subheader("Top Important Features")
 
                     importance = pd.DataFrame({
-
                         "feature":bank_features,
                         "importance":bank_model.feature_importances_
-
                     })
 
                     importance = importance.sort_values(
@@ -191,10 +165,6 @@ if page == "Bankruptcy Prediction":
                     )
 
                     st.plotly_chart(fig5,use_container_width=True)
-
-                # =====================
-                # RESULTS
-                # =====================
 
                 st.subheader("Prediction Results")
 
@@ -226,10 +196,16 @@ if page == "Growth Prediction":
 
     def detect_year_prefix(filename):
 
-        match = re.search(r"(\d)year",filename.lower())
+        name = filename.lower()
 
-        if match:
-            return f"y{match.group(1)}__"
+        if "1year" in name:
+            return "y1__"
+        elif "2year" in name:
+            return "y2__"
+        elif "3year" in name:
+            return "y3__"
+        elif "4year" in name:
+            return "y4__"
 
         return ""
 
@@ -241,7 +217,7 @@ if page == "Growth Prediction":
 
     if files:
 
-        df_dict = {}
+        df_list = []
 
         for file in files:
 
@@ -259,20 +235,27 @@ if page == "Growth Prediction":
                     data_raw,meta = arff.loadarff(StringIO(content))
                     df_temp = pd.DataFrame(data_raw)
 
-                # bỏ cột class
+                    for col in df_temp.select_dtypes([object]):
+                        df_temp[col] = df_temp[col].apply(
+                            lambda x: x.decode("utf-8") if isinstance(x, bytes) else x
+                        )
+
                 if "class" in df_temp.columns:
                     df_temp = df_temp.drop(columns=["class"])
 
                 prefix = detect_year_prefix(file.name)
 
-                df_temp.columns = [prefix + col for col in df_temp.columns]
+                df_temp.columns = [f"{prefix}{col}" for col in df_temp.columns]
 
-                df_dict[prefix] = df_temp
+                df_list.append(df_temp)
 
             except Exception as e:
                 st.error(f"File error: {e}")
 
-        df = pd.concat(df_dict.values(),axis=1)
+        if len(df_list) == 0:
+            st.stop()
+
+        df = pd.concat(df_list,axis=1)
 
         st.subheader("Merged dataset")
         st.dataframe(df.head())
@@ -285,7 +268,6 @@ if page == "Growth Prediction":
 
                 required = list(growth_imputer.feature_names_in_)
 
-                # thêm cột còn thiếu
                 for col in required:
                     if col not in X.columns:
                         X[col] = np.nan
@@ -298,21 +280,44 @@ if page == "Growth Prediction":
                 pred = growth_model.predict(X)
 
                 results = df.copy()
-
                 results["Growth Prediction"] = pred
 
-                # =====================
-                # METRICS
-                # =====================
-
-                col1,col2 = st.columns(2)
+                col1,col2,col3 = st.columns(3)
 
                 col1.metric("Total Companies",len(results))
                 col2.metric("Predicted Growth",(pred==1).sum())
+                col3.metric("Predicted No Growth",(pred==0).sum())
 
-                # =====================
-                # RESULTS
-                # =====================
+                st.subheader("Growth Distribution")
+
+                fig1 = px.bar(
+                    results["Growth Prediction"].value_counts(),
+                    title="Growth vs No Growth"
+                )
+
+                st.plotly_chart(fig1,use_container_width=True)
+
+                st.subheader("Growth Pie Chart")
+
+                fig2 = px.pie(
+                    results,
+                    names="Growth Prediction",
+                    title="Growth Share"
+                )
+
+                st.plotly_chart(fig2,use_container_width=True)
+
+                st.subheader("Feature Distribution Example")
+
+                sample_feature = results.columns[0]
+
+                fig3 = px.histogram(
+                    results,
+                    x=sample_feature,
+                    nbins=30
+                )
+
+                st.plotly_chart(fig3,use_container_width=True)
 
                 st.subheader("Prediction Results")
 
@@ -328,4 +333,3 @@ if page == "Growth Prediction":
 
             except Exception as e:
                 st.error(f"Prediction error: {e}")
-
