@@ -9,6 +9,44 @@ from io import StringIO
 
 st.set_page_config(page_title="AI Financial Dashboard", layout="wide")
 
+st.markdown("""
+<style>
+
+.main {
+    background-color: #0E1117;
+}
+
+.block-container {
+    padding-top: 2rem;
+}
+
+h1, h2, h3 {
+    color: white;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 40px;
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 18px;
+    color: #A0AEC0;
+}
+
+[data-testid="metric-container"] {
+    background: #111827;
+    border: 1px solid #1F2937;
+    padding: 20px;
+    border-radius: 12px;
+}
+
+.stDataFrame {
+    border-radius: 10px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
 st.title("AI Financial Analysis Dashboard")
 
 # LOAD MODELS
@@ -54,7 +92,7 @@ page = st.sidebar.radio(
 
 if page == "Bankruptcy Prediction":
 
-    st.header("🏦 Bankruptcy Risk Prediction")
+    st.header(" Bankruptcy Risk Prediction")
 
     if bank_model is None:
         st.error("bankruptcy_model.pkl not found")
@@ -92,7 +130,7 @@ if page == "Bankruptcy Prediction":
                 results["Prediction"] = np.where(pred==1,"Bankrupt","Safe")
                 results["Risk %"] = (prob*100).round(2)
 
-                col1,col2,col3 = st.columns(3)
+                col1,col2,col3 = st.columns(3, gap="large")
 
                 col1.metric("Total Companies",len(results))
                 col2.metric("Bankrupt Risk",(pred==1).sum())
@@ -179,7 +217,7 @@ if page == "Bankruptcy Prediction":
 
 if page == "Growth Prediction":
 
-    st.header("📈 Financial Growth Prediction")
+    st.header(" Financial Growth Prediction")
 
     if growth_model is None:
         st.error("Growth model files missing")
@@ -266,7 +304,7 @@ if page == "Growth Prediction":
                 results["Growth Prediction"] = pred
 
 
-                col1,col2,col3 = st.columns(3)
+                col1,col2,col3 = st.columns(3, gap="large")
 
                 col1.metric("Average Growth",round(results["Growth Prediction"].mean(),4))
                 col2.metric("Max Growth",round(results["Growth Prediction"].max(),4))
@@ -302,4 +340,5 @@ if page == "Growth Prediction":
 
             except Exception as e:
                 st.error(f"Prediction error: {e}")
+
 
