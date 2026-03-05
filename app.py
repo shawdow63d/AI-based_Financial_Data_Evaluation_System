@@ -259,7 +259,7 @@ if page == "Growth Prediction":
                     data_raw,meta = arff.loadarff(StringIO(content))
                     df_temp = pd.DataFrame(data_raw)
 
-                # bỏ class
+                # bỏ cột class
                 if "class" in df_temp.columns:
                     df_temp = df_temp.drop(columns=["class"])
 
@@ -275,7 +275,6 @@ if page == "Growth Prediction":
         df = pd.concat(df_dict.values(),axis=1)
 
         st.subheader("Merged dataset")
-
         st.dataframe(df.head())
 
         if st.button("Run Growth Prediction"):
@@ -304,49 +303,11 @@ if page == "Growth Prediction":
                 col1,col2 = st.columns(2)
 
                 col1.metric("Total Companies",len(results))
-                col2.metric("Predicted Growth Companies",(pred==1).sum())
+                col2.metric("Predicted Growth",(pred==1).sum())
 
                 # =====================
-                # PIE CHART
+                # RESULTS
                 # =====================
-
-                st.subheader("Growth vs Non Growth")
-
-                fig1 = px.pie(
-                    results,
-                    names="Growth Prediction"
-                )
-
-                st.plotly_chart(fig1,use_container_width=True)
-
-                # =====================
-                # BAR CHART
-                # =====================
-
-                st.subheader("Growth Prediction Count")
-
-                fig2 = px.bar(
-                    results["Growth Prediction"].value_counts()
-                )
-
-                st.plotly_chart(fig2,use_container_width=True)
-
-                # =====================
-                # SCATTER SAMPLE
-                # =====================
-
-                st.subheader("Feature Scatter Sample")
-
-                sample_cols = results.columns[:2]
-
-                fig3 = px.scatter(
-                    results,
-                    x=sample_cols[0],
-                    y=sample_cols[1],
-                    color="Growth Prediction"
-                )
-
-                st.plotly_chart(fig3,use_container_width=True)
 
                 st.subheader("Prediction Results")
 
