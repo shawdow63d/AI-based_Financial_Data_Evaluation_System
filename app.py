@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.express as px
-import re
 from scipy.io import arff
 from io import StringIO
 
@@ -282,45 +281,7 @@ if page == "Growth Prediction":
                 results = df.copy()
                 results["Growth Prediction"] = pred
 
-                col1,col2,col3 = st.columns(3)
-
-                col1.metric("Total Companies",len(results))
-                col2.metric("Predicted Growth",(pred==1).sum())
-                col3.metric("Predicted No Growth",(pred==0).sum())
-
-                st.subheader("Growth Distribution")
-
-                fig1 = px.bar(
-                    results["Growth Prediction"].value_counts(),
-                    title="Growth vs No Growth"
-                )
-
-                st.plotly_chart(fig1,use_container_width=True)
-
-                st.subheader("Growth Pie Chart")
-
-                fig2 = px.pie(
-                    results,
-                    names="Growth Prediction",
-                    title="Growth Share"
-                )
-
-                st.plotly_chart(fig2,use_container_width=True)
-
-                st.subheader("Feature Distribution Example")
-
-                sample_feature = results.columns[0]
-
-                fig3 = px.histogram(
-                    results,
-                    x=sample_feature,
-                    nbins=30
-                )
-
-                st.plotly_chart(fig3,use_container_width=True)
-
                 st.subheader("Prediction Results")
-
                 st.dataframe(results)
 
                 csv = results.to_csv(index=False).encode("utf-8")
