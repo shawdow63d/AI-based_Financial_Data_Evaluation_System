@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.express as px
+import re
 from scipy.io import arff
 from io import StringIO
 
@@ -54,7 +55,7 @@ page = st.sidebar.radio(
 )
 
 # =====================================================
-# BANKRUPTCY PAGE
+# BANKRUPTCY PAGE (GIỮ NGUYÊN)
 # =====================================================
 
 if page == "Bankruptcy Prediction":
@@ -126,8 +127,7 @@ if page == "Bankruptcy Prediction":
 
                 fig3 = px.pie(
                     results,
-                    names="Prediction",
-                    title="Company Risk Share"
+                    names="Prediction"
                 )
 
                 st.plotly_chart(fig3,use_container_width=True)
@@ -234,11 +234,6 @@ if page == "Growth Prediction":
                     data_raw,meta = arff.loadarff(StringIO(content))
                     df_temp = pd.DataFrame(data_raw)
 
-                    for col in df_temp.select_dtypes([object]):
-                        df_temp[col] = df_temp[col].apply(
-                            lambda x: x.decode("utf-8") if isinstance(x, bytes) else x
-                        )
-
                 if "class" in df_temp.columns:
                     df_temp = df_temp.drop(columns=["class"])
 
@@ -250,9 +245,6 @@ if page == "Growth Prediction":
 
             except Exception as e:
                 st.error(f"File error: {e}")
-
-        if len(df_list) == 0:
-            st.stop()
 
         df = pd.concat(df_list,axis=1)
 
@@ -280,6 +272,85 @@ if page == "Growth Prediction":
 
                 results = df.copy()
                 results["Growth Prediction"] = pred
+
+                # =========================
+                # THỐNG KÊ
+                # =========================
+
+                col1,col2,col3 = st.columns(3)
+
+                col1.metric("Average Growth",round(results["Growth Prediction"].mean(),4))
+                col2.metric("Max Growth",round(results["Growth Prediction"].max(),4))
+                col3.metric("Min Growth",round(results["Growth Prediction"].min(),4))
+
+                # =========================
+                # HISTOGRAM
+                # =========================
+
+                st.subheader("Growth Distribution")
+
+                fig1 = px.histogram(
+                    results,
+                    x="Growth Prediction",
+                    nbins=30
+                )
+
+                st.plotly_chart(fig1,use_container_width=True)
+
+                # =========================
+                # BOX PLOT
+                # =========================
+
+                st.subheader("Growth Box Plot")
+
+                fig2 = px.box(
+                    results,
+                    y="Growth Prediction"
+                )
+
+                st.plotly_chart(fig2,use_container_width=True)
+
+                # =========================
+                # PIE CHART
+                # =========================
+
+                results["Growth Level"] = pd.cut(
+                    results["Growth Prediction"],
+                    bins=[0,0.02,0.04,1],
+                    labels=["Low","Medium","High"]
+                )
+
+                st.subheader("Growth Level Share")
+
+                fig3 = px.pie(
+                    results,
+                    names="Growth Level"
+                )
+
+                st.plotly_chart(fig3,use_container_width=True)
+
+                # =========================
+                # TOP GROWTH
+                # =========================
+
+                st.subheader("Top 20 Growth Companies")
+
+                top = results.sort_values(
+                    "Growth Prediction",
+                    ascending=False
+                ).head(20)
+
+                fig4 = px.bar(
+                    top,
+                    x=top.index,
+                    y="Growth Prediction"
+                )
+
+                st.plotly_chart(fig4,use_container_width=True)
+
+                # =========================
+                # RESULTS TABLE
+                # =========================
 
                 st.subheader("Prediction Results")
                 st.dataframe(results)
