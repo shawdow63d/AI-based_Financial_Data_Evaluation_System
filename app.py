@@ -1,118 +1,296 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import numpy as np
 import joblib
+import plotly.express as px
+import re
 from scipy.io import arff
+from io import StringIO
 
-st.title("📊 AI-Based Financial Data Evaluation System")
+st.set_page_config(page_title="AI Financial Dashboard", layout="wide")
 
-# Load model
-model = joblib.load("model.pkl")
+st.title("AI Financial Analysis Dashboard")
 
-# Upload file
-uploaded_file = st.file_uploader("Upload ARFF file", type=["arff"])
+# =====================================================
+# LOAD MODELS
+# =====================================================
 
-if uploaded_file is not None:
+@st.cache_resource
+def load_bankruptcy():
+    try:
+        artifacts = joblib.load("bankruptcy_model.pkl")
+        return (
+            artifacts["model"],
+            artifacts["scaler"],
+            artifacts["imputer"],
+            artifacts["feature_names"]
+        )
+    except:
+        return None,None,None,None
 
-    data, meta = arff.loadarff(uploaded_file)
-    df = pd.DataFrame(data)
 
-    # convert bytes -> string
-    for col in df.select_dtypes([object]):
-        df[col] = df[col].apply(lambda x: x.decode("utf-8") if isinstance(x, bytes) else x)
+@st.cache_resource
+def load_growth():
+    try:
+        model = joblib.load("model_xgb.pkl")
+        scaler = joblib.load("scaler.pkl")
+        imputer = joblib.load("imputer.pkl")
+        return model,scaler,imputer
+    except:
+        return None,None,None
 
-    # =============================
-    # Remove class column for display
-    # =============================
 
-    if "class" in df.columns:
-        df_display = df.drop(columns=["class"])
-    else:
-        df_display = df.copy()
+bank_model,bank_scaler,bank_imputer,bank_features = load_bankruptcy()
+growth_model,growth_scaler,growth_imputer = load_growth()
 
-    st.subheader("📄 Dataset Preview")
-    st.write(df_display.head())
+# =====================================================
+# SIDEBAR NAVIGATION
+# =====================================================
 
-    numeric_cols = df_display.select_dtypes(include=["float64", "int64"]).columns
+st.sidebar.title("Navigation")
 
-    # =============================
-    # Histogram
-    # =============================
+page = st.sidebar.radio(
+    "Go to",
+    ["Bankruptcy Prediction","Growth Prediction"]
+)
 
-    st.subheader("📈 Histogram")
+# =====================================================
+# BANKRUPTCY PAGE
+# =====================================================
 
-    column = st.selectbox("Select column", numeric_cols)
+if page == "Bankruptcy Prediction":
 
-    fig, ax = plt.subplots()
-    ax.hist(df_display[column], bins=20)
-    ax.set_title(f"Histogram of {column}")
+    st.header("🏦 Bankruptcy Risk Prediction")
 
-    st.pyplot(fig)
+    if bank_model is None:
+        st.error("bankruptcy_model.pkl not found")
+        st.stop()
 
-    # =============================
-    # Boxplot
-    # =============================
+    file = st.file_uploader(
+        "Upload financial dataset",
+        type=["csv","xlsx"]
+    )
 
-    st.subheader("📦 Boxplot")
+    if file:
 
-    fig2, ax2 = plt.subplots()
-    sns.boxplot(data=df_display[numeric_cols], ax=ax2)
+        if file.name.endswith(".csv"):
+            df = pd.read_csv(file)
+        else:
+            df = pd.read_excel(file)
 
-    st.pyplot(fig2)
+        st.subheader("Preview data")
 
-    # =============================
-    # Pie Chart
-    # =============================
+        st.dataframe(df.head())
 
-    st.subheader("🥧 Pie Chart")
+        if st.button("Run Prediction"):
 
-    pie_column = st.selectbox("Select column for Pie", numeric_cols)
+            try:
 
-    pie_data = pd.cut(df_display[pie_column], bins=5).value_counts()
+                X = df[bank_features]
 
-    fig3, ax3 = plt.subplots()
-    ax3.pie(pie_data, labels=pie_data.index, autopct="%1.1f%%")
+                X = bank_imputer.transform(X)
+                X = bank_scaler.transform(X)
 
-    st.pyplot(fig3)
+                pred = bank_model.predict(X)
+                prob = bank_model.predict_proba(X)[:,1]
 
-    # =============================
-    # Correlation Heatmap
-    # =============================
+                results = df.copy()
 
-    st.subheader("🔥 Correlation Heatmap")
+                results["Prediction"] = np.where(pred==1,"Bankrupt","Safe")
+                results["Risk %"] = (prob*100).round(2)
 
-    corr = df_display[numeric_cols].corr()
+                # =====================
+                # METRICS
+                # =====================
 
-    fig4, ax4 = plt.subplots()
-    sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax4)
+                col1,col2,col3 = st.columns(3)
 
-    st.pyplot(fig4)
+                col1.metric("Total Companies",len(results))
+                col2.metric("Bankrupt Risk",(pred==1).sum())
+                col3.metric("Average Risk %",round(results["Risk %"].mean(),2))
 
-    # =============================
-    # Prediction
-    # =============================
+                # =====================
+                # CHART
+                # =====================
 
-    st.subheader("🤖 Bankruptcy Prediction")
+                st.subheader("Risk Distribution")
 
-    predictions = model.predict(df_display)
+                fig = px.bar(
+                    results["Prediction"].value_counts(),
+                    title="Bankruptcy Risk Distribution"
+                )
 
-    result_df = df_display.copy()
-    result_df["Prediction"] = predictions
+                st.plotly_chart(fig,use_container_width=True)
 
-    st.write(result_df.head())
+                # =====================
+                # HISTOGRAM
+                # =====================
 
-    # =============================
-    # Bankruptcy Distribution
-    # =============================
+                st.subheader("Risk Score Distribution")
 
-    st.subheader("📊 Bankruptcy Prediction Distribution")
+                fig2 = px.histogram(results,x="Risk %",nbins=30)
 
-    pred_counts = pd.Series(predictions).value_counts()
+                st.plotly_chart(fig2,use_container_width=True)
 
-    fig5, ax5 = plt.subplots()
-    ax5.bar(pred_counts.index.astype(str), pred_counts.values)
-    ax5.set_xlabel("Prediction")
-    ax5.set_ylabel("Count")
+                # =====================
+                # FEATURE IMPORTANCE
+                # =====================
 
-    st.pyplot(fig5)
+                if hasattr(bank_model,"feature_importances_"):
+
+                    st.subheader("Top Important Features")
+
+                    importance = pd.DataFrame({
+
+                        "feature":bank_features,
+                        "importance":bank_model.feature_importances_
+
+                    })
+
+                    importance = importance.sort_values(
+                        "importance",
+                        ascending=False
+                    ).head(20)
+
+                    fig3 = px.bar(
+                        importance,
+                        x="importance",
+                        y="feature",
+                        orientation="h"
+                    )
+
+                    st.plotly_chart(fig3,use_container_width=True)
+
+                # =====================
+                # RESULTS TABLE
+                # =====================
+
+                st.subheader("Prediction Results")
+
+                st.dataframe(results)
+
+                # DOWNLOAD
+
+                csv = results.to_csv(index=False).encode("utf-8")
+
+                st.download_button(
+                    "Download Results CSV",
+                    csv,
+                    "bankruptcy_results.csv",
+                    "text/csv"
+                )
+
+            except Exception as e:
+
+                st.error(f"Prediction error: {e}")
+
+# =====================================================
+# GROWTH PAGE
+# =====================================================
+
+if page == "Growth Prediction":
+
+    st.header("📈 Financial Growth Prediction")
+
+    if growth_model is None:
+        st.error("Growth model files missing")
+        st.stop()
+
+    def detect_year_prefix(filename):
+
+        match = re.search(r"(\d)year",filename.lower())
+
+        if match:
+            return f"y{match.group(1)}__"
+
+        return None
+
+
+    files = st.file_uploader(
+        "Upload 1year 2year 3year 4year datasets",
+        type=["csv","xlsx","arff"],
+        accept_multiple_files=True
+    )
+
+    if files:
+
+        df_dict = {}
+
+        for file in files:
+
+            try:
+
+                if file.name.endswith(".csv"):
+                    df_temp = pd.read_csv(file)
+
+                elif file.name.endswith(".xlsx"):
+                    df_temp = pd.read_excel(file)
+
+                else:
+
+                    content = file.read().decode("utf-8")
+
+                    data_raw,meta = arff.loadarff(StringIO(content))
+
+                    df_temp = pd.DataFrame(data_raw)
+
+                if "class" in df_temp.columns:
+                    df_temp = df_temp.drop(columns=["class"])
+
+                prefix = detect_year_prefix(file.name)
+
+                df_temp.columns = [prefix + col for col in df_temp.columns]
+
+                df_dict[prefix] = df_temp
+
+            except Exception as e:
+
+                st.error(f"File error: {e}")
+
+        df = pd.concat(df_dict.values(),axis=1)
+
+        st.subheader("Merged dataset")
+
+        st.dataframe(df.head())
+
+        if st.button("Run Growth Prediction"):
+
+            try:
+
+                X = df.copy()
+
+                required = list(growth_imputer.feature_names_in_)
+
+                X = X[required]
+
+                X = growth_imputer.transform(X)
+                X = growth_scaler.transform(X)
+
+                pred = growth_model.predict(X)
+
+                results = df.copy()
+
+                results["Growth Prediction"] = pred
+
+                st.subheader("Growth Distribution")
+
+                fig = px.bar(
+                    results["Growth Prediction"].value_counts()
+                )
+
+                st.plotly_chart(fig,use_container_width=True)
+
+                st.dataframe(results)
+
+                csv = results.to_csv(index=False).encode("utf-8")
+
+                st.download_button(
+                    "Download Results CSV",
+                    csv,
+                    "growth_results.csv"
+                )
+
+            except Exception as e:
+
+                st.error(f"Prediction error: {e}")
+
