@@ -27,7 +27,7 @@ if data:
     feature_names = data['feature_names']
 
     # Sidebar nhập liệu
-    st.sidebar.header("📥 Nhập dữ liệu")
+    st.sidebar.header("    Nhập dữ liệu")
     option = st.sidebar.radio("Chọn cách nhập:", ["Upload file Excel/CSV", "Nhập thủ công (Demo)"])
     
     input_df = None
@@ -85,14 +85,14 @@ if data:
                 def color_danger(val):
                     return 'color: red; font-weight: bold' if val == "NGUY CƠ PHÁ SẢN" else 'color: green'
 
-                st.subheader("⚠️ Danh sách Doanh nghiệp Báo động đỏ")
+                st.subheader("    Danh sách Doanh nghiệp Báo động đỏ")
                 if not risky_df.empty:
                     st.dataframe(risky_df.style.applymap(color_danger, subset=['Dự đoán']))
                 else:
                     st.success("Tuyệt vời! Không tìm thấy doanh nghiệp nào có nguy cơ phá sản trong file này.")
 
                 # D. Hiển thị bảng gốc dạng thường (xử lý được file lớn không bị lỗi)
-                st.subheader("📋 Dữ liệu toàn bộ (Chi tiết)")
+                st.subheader("    Dữ liệu toàn bộ (Chi tiết)")
                 st.dataframe(results) 
                 
                 # --- HẾT PHẦN SỬA ---
@@ -101,21 +101,22 @@ if data:
                 st.error(f"File của bạn thiếu cột dữ liệu quan trọng: {e}")
             except Exception as e:
                 st.error(f"Có lỗi xảy ra: {e}")
-# =====================================================
-# PHẦN 2 — DỰ BÁO TĂNG TRƯỞNG
-# =====================================================
+
+
 
 import streamlit as st
 import pandas as pd
 import joblib
 from scipy.io import arff
+from io import StringIO
 
-st.divider()
-st.header("📈 AI Dự báo Tăng trưởng")
+st.set_page_config(page_title="AI Financial Growth", layout="wide")
 
-# =========================
+st.title("    AI Financial Prediction System")
+
+# =====================================================
 # LOAD MODEL
-# =========================
+# =====================================================
 @st.cache_resource
 def load_growth_artifacts():
     try:
@@ -124,98 +125,112 @@ def load_growth_artifacts():
         imputer = joblib.load("imputer.pkl")
         return model, scaler, imputer
     except Exception as e:
-        st.error(f"Lỗi load model tăng trưởng: {e}")
+        st.error(f"Lỗi load model: {e}")
         return None, None, None
 
 growth_model, growth_scaler, growth_imputer = load_growth_artifacts()
 
-# =========================
-# UI UPLOAD
-# =========================
+# =====================================================
+# UI
+# =====================================================
+st.divider()
+st.header("📈 AI Dự báo Tăng trưởng")
+
 if growth_model:
 
-    st.sidebar.header("📥 Nhập dữ liệu (Tăng trưởng)")
+    st.sidebar.header("    Upload dữ liệu")
 
-    growth_file = st.sidebar.file_uploader(
-        "Tải file cho mô hình Tăng trưởng",
+    growth_files = st.sidebar.file_uploader(
+        "Tải file (csv, xlsx, arff)",
         type=["csv", "xlsx", "arff"],
-        key="growth_upload"
+        accept_multiple_files=True,
     )
 
     growth_df = None
 
-    if growth_file:
-        try:
-            # CSV
-            if growth_file.name.endswith(".csv"):
-                growth_df = pd.read_csv(growth_file)
+    # =====================================================
+    # READ FILES
+    # =====================================================
+    if growth_files:
+        df_list = []
 
-            # Excel
-            elif growth_file.name.endswith(".xlsx"):
-                growth_df = pd.read_excel(growth_file)
+        for file in growth_files:
+            try:
+                if file.name.endswith(".csv"):
+                    df_temp = pd.read_csv(file)
 
-            # ARFF
-            elif growth_file.name.endswith(".arff"):
-                data_raw, meta = arff.loadarff(growth_file)
-                growth_df = pd.DataFrame(data_raw)
+                elif file.name.endswith(".xlsx"):
+                    df_temp = pd.read_excel(file)
 
-                # Decode byte columns
-                for col in growth_df.select_dtypes([object]).columns:
-                    growth_df[col] = growth_df[col].str.decode("utf-8")
+                elif file.name.endswith(".arff"):
+                    content = file.read().decode("utf-8")
+                    data_raw, meta = arff.loadarff(StringIO(content))
+                    df_temp = pd.DataFrame(data_raw)
 
-            st.success("Tải file tăng trưởng thành công!")
+                    # decode byte columns
+                    for col in df_temp.select_dtypes([object]).columns:
+                        df_temp[col] = df_temp[col].apply(
+                            lambda x: x.decode("utf-8") if isinstance(x, bytes) else x
+                        )
 
-        except Exception as e:
-            st.error(f"Lỗi đọc file: {e}")
+                df_list.append(df_temp)
 
-    # =========================
+            except Exception as e:
+                st.error(f"Lỗi đọc file {file.name}: {e}")
+
+        if df_list:
+            growth_df = pd.concat(df_list, ignore_index=True)
+            st.success(f"Đã tải {len(df_list)} file thành công!")
+
+    # =====================================================
     # PREDICT
-    # =========================
+    # =====================================================
     if growth_df is not None:
 
-        if st.button("Chạy Dự báo Tăng trưởng"):
+        st.subheader("    Preview dữ liệu")
+        st.dataframe(growth_df.head())
+
+        if st.button("    Chạy Dự báo"):
 
             try:
                 df_input = growth_df.copy()
 
-                # Xóa cột class nếu tồn tại
+                # Xóa class nếu tồn tại
                 if "class" in df_input.columns:
                     df_input = df_input.drop(columns=["class"])
 
-                # =========================
-                # ĐẢM BẢO ĐÚNG FEATURE ORDER
-                # =========================
+                # Kiểm tra feature order
                 if hasattr(growth_imputer, "feature_names_in_"):
                     required_columns = list(growth_imputer.feature_names_in_)
 
                     missing_cols = set(required_columns) - set(df_input.columns)
-                    extra_cols = set(df_input.columns) - set(required_columns)
-
                     if missing_cols:
                         st.error(f"Thiếu cột: {missing_cols}")
                         st.stop()
 
-                    if extra_cols:
-                        df_input = df_input[required_columns]
-                    else:
-                        df_input = df_input[required_columns]
+                    df_input = df_input[required_columns]
 
-                # =========================
-                # TRANSFORM
-                # =========================
+                # Transform
                 X_growth = growth_imputer.transform(df_input)
                 X_growth = growth_scaler.transform(X_growth)
 
-                # =========================
-                # PREDICT
-                # =========================
+                # Predict
                 growth_pred = growth_model.predict(X_growth)
 
-                results_growth = growth_df.copy()
-                results_growth["Dự báo Tăng trưởng"] = growth_pred
+                results = growth_df.copy()
+                results["Dự báo Tăng trưởng"] = growth_pred
 
-                st.success("Dự báo thành công!")
-                st.dataframe(results_growth)
+                st.success("    Dự báo thành công!")
+                st.dataframe(results)
+
+                # Download
+                csv = results.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "    Tải kết quả CSV",
+                    csv,
+                    "growth_predictions.csv",
+                    "text/csv"
+                )
 
             except Exception as e:
-                st.error(f"Lỗi tăng trưởng: {e}")
+                st.error(f"Lỗi dự báo: {e}")
