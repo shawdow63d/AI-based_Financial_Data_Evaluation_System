@@ -107,12 +107,13 @@ if data:
 import streamlit as st
 import pandas as pd
 import joblib
+import re
 from scipy.io import arff
 from io import StringIO
 
 st.set_page_config(page_title="AI Financial Growth", layout="wide")
 
-st.title("    AI Financial Prediction System")
+st.title("AI Financial Prediction System")
 
 # =====================================================
 # LOAD MODEL
@@ -131,6 +132,15 @@ def load_growth_artifacts():
 growth_model, growth_scaler, growth_imputer = load_growth_artifacts()
 
 # =====================================================
+# HÀM NHẬN DIỆN NĂM
+# =====================================================
+def detect_year_prefix(filename):
+    match = re.search(r"(\d)year", filename.lower())
+    if match:
+        return f"y{match.group(1)}__"
+    return None
+
+# =====================================================
 # UI
 # =====================================================
 st.divider()
@@ -138,10 +148,10 @@ st.header("📈 AI Dự báo Tăng trưởng")
 
 if growth_model:
 
-    st.sidebar.header("    Upload dữ liệu")
+    st.sidebar.header("Upload dữ liệu")
 
     growth_files = st.sidebar.file_uploader(
-        "Tải file (csv, xlsx, arff)",
+        "Tải file (1year, 2year, 3year, 4year)",
         type=["csv", "xlsx", "arff"],
         accept_multiple_files=True,
     )
@@ -149,13 +159,16 @@ if growth_model:
     growth_df = None
 
     # =====================================================
-    # READ FILES
+    # READ + RENAME + MERGE
     # =====================================================
     if growth_files:
-        df_list = []
+        df_dict = {}
 
         for file in growth_files:
             try:
+                # ------------------
+                # READ FILE
+                # ------------------
                 if file.name.endswith(".csv"):
                     df_temp = pd.read_csv(file)
 
@@ -167,39 +180,55 @@ if growth_model:
                     data_raw, meta = arff.loadarff(StringIO(content))
                     df_temp = pd.DataFrame(data_raw)
 
-                    # decode byte columns
                     for col in df_temp.select_dtypes([object]).columns:
                         df_temp[col] = df_temp[col].apply(
                             lambda x: x.decode("utf-8") if isinstance(x, bytes) else x
                         )
 
-                df_list.append(df_temp)
+                # ------------------
+                # DROP CLASS
+                # ------------------
+                if "class" in df_temp.columns:
+                    df_temp = df_temp.drop(columns=["class"])
+
+                # ------------------
+                # ADD PREFIX
+                # ------------------
+                prefix = detect_year_prefix(file.name)
+
+                if prefix is None:
+                    st.error(f"Không nhận diện được năm từ tên file: {file.name}")
+                    st.stop()
+
+                df_temp.columns = [prefix + col for col in df_temp.columns]
+
+                df_dict[prefix] = df_temp
 
             except Exception as e:
                 st.error(f"Lỗi đọc file {file.name}: {e}")
+                st.stop()
 
-        if df_list:
-            growth_df = pd.concat(df_list, ignore_index=True)
-            st.success(f"Đã tải {len(df_list)} file thành công!")
+        # ------------------
+        # MERGE THEO CỘT (256 features)
+        # ------------------
+        if df_dict:
+            growth_df = pd.concat(df_dict.values(), axis=1)
+            st.success(f"Đã tải và xử lý {len(df_dict)} năm dữ liệu thành công!")
 
     # =====================================================
     # PREDICT
     # =====================================================
     if growth_df is not None:
 
-        st.subheader("    Preview dữ liệu")
+        st.subheader("Preview dữ liệu sau khi xử lý")
         st.dataframe(growth_df.head())
 
-        if st.button("    Chạy Dự báo"):
+        if st.button("Chạy Dự báo"):
 
             try:
                 df_input = growth_df.copy()
 
-                # Xóa class nếu tồn tại
-                if "class" in df_input.columns:
-                    df_input = df_input.drop(columns=["class"])
-
-                # Kiểm tra feature order
+                # Đảm bảo đúng thứ tự feature khi train
                 if hasattr(growth_imputer, "feature_names_in_"):
                     required_columns = list(growth_imputer.feature_names_in_)
 
@@ -220,13 +249,13 @@ if growth_model:
                 results = growth_df.copy()
                 results["Dự báo Tăng trưởng"] = growth_pred
 
-                st.success("    Dự báo thành công!")
+                st.success("Dự báo thành công!")
                 st.dataframe(results)
 
                 # Download
                 csv = results.to_csv(index=False).encode("utf-8")
                 st.download_button(
-                    "    Tải kết quả CSV",
+                    "Tải kết quả CSV",
                     csv,
                     "growth_predictions.csv",
                     "text/csv"
