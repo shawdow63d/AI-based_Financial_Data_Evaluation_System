@@ -10,3 +10,5 @@ dill
 matplotlib
 scipy
 openpyxl
+plotly
+shap
