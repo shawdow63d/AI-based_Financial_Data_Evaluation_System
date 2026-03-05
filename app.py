@@ -103,12 +103,19 @@ if data:
                 st.error(f"Có lỗi xảy ra: {e}")
 # =====================================================
 # PHẦN 2 — DỰ BÁO TĂNG TRƯỞNG
-# Load riêng model, scaler, imputer
 # =====================================================
+
+import streamlit as st
+import pandas as pd
+import joblib
+from scipy.io import arff
 
 st.divider()
 st.header("📈 AI Dự báo Tăng trưởng")
 
+# =========================
+# LOAD MODEL
+# =========================
 @st.cache_resource
 def load_growth_artifacts():
     try:
@@ -122,44 +129,93 @@ def load_growth_artifacts():
 
 growth_model, growth_scaler, growth_imputer = load_growth_artifacts()
 
+# =========================
+# UI UPLOAD
+# =========================
 if growth_model:
 
     st.sidebar.header("📥 Nhập dữ liệu (Tăng trưởng)")
 
     growth_file = st.sidebar.file_uploader(
         "Tải file cho mô hình Tăng trưởng",
-        type=["csv", "xlsx"],
+        type=["csv", "xlsx", "arff"],
         key="growth_upload"
     )
 
     growth_df = None
 
     if growth_file:
-        if growth_file.name.endswith(".csv"):
-            growth_df = pd.read_csv(growth_file)
-        else:
-            growth_df = pd.read_excel(growth_file)
-        st.success("Tải file tăng trưởng thành công!")
+        try:
+            # CSV
+            if growth_file.name.endswith(".csv"):
+                growth_df = pd.read_csv(growth_file)
 
+            # Excel
+            elif growth_file.name.endswith(".xlsx"):
+                growth_df = pd.read_excel(growth_file)
+
+            # ARFF
+            elif growth_file.name.endswith(".arff"):
+                data_raw, meta = arff.loadarff(growth_file)
+                growth_df = pd.DataFrame(data_raw)
+
+                # Decode byte columns
+                for col in growth_df.select_dtypes([object]).columns:
+                    growth_df[col] = growth_df[col].str.decode("utf-8")
+
+            st.success("Tải file tăng trưởng thành công!")
+
+        except Exception as e:
+            st.error(f"Lỗi đọc file: {e}")
+
+    # =========================
+    # PREDICT
+    # =========================
     if growth_df is not None:
 
         if st.button("Chạy Dự báo Tăng trưởng"):
 
             try:
-                # ⚠️ PHẢI đúng thứ tự cột lúc train
-                X_growth = growth_df.copy()
+                df_input = growth_df.copy()
 
-                X_growth = growth_imputer.transform(X_growth)
+                # Xóa cột class nếu tồn tại
+                if "class" in df_input.columns:
+                    df_input = df_input.drop(columns=["class"])
+
+                # =========================
+                # ĐẢM BẢO ĐÚNG FEATURE ORDER
+                # =========================
+                if hasattr(growth_imputer, "feature_names_in_"):
+                    required_columns = list(growth_imputer.feature_names_in_)
+
+                    missing_cols = set(required_columns) - set(df_input.columns)
+                    extra_cols = set(df_input.columns) - set(required_columns)
+
+                    if missing_cols:
+                        st.error(f"Thiếu cột: {missing_cols}")
+                        st.stop()
+
+                    if extra_cols:
+                        df_input = df_input[required_columns]
+                    else:
+                        df_input = df_input[required_columns]
+
+                # =========================
+                # TRANSFORM
+                # =========================
+                X_growth = growth_imputer.transform(df_input)
                 X_growth = growth_scaler.transform(X_growth)
 
+                # =========================
+                # PREDICT
+                # =========================
                 growth_pred = growth_model.predict(X_growth)
 
                 results_growth = growth_df.copy()
                 results_growth["Dự báo Tăng trưởng"] = growth_pred
 
+                st.success("Dự báo thành công!")
                 st.dataframe(results_growth)
 
             except Exception as e:
                 st.error(f"Lỗi tăng trưởng: {e}")
-
-
