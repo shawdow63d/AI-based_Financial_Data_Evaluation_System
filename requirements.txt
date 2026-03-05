@@ -11,3 +11,4 @@ matplotlib
 scipy
 openpyxl
 plotly
+seaborn
