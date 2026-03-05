@@ -274,7 +274,7 @@ if page == "Growth Prediction":
                 results["Growth Prediction"] = pred
 
                 # =========================
-                # THỐNG KÊ
+                # STATS
                 # =========================
 
                 col1,col2,col3 = st.columns(3)
@@ -282,33 +282,6 @@ if page == "Growth Prediction":
                 col1.metric("Average Growth",round(results["Growth Prediction"].mean(),4))
                 col2.metric("Max Growth",round(results["Growth Prediction"].max(),4))
                 col3.metric("Min Growth",round(results["Growth Prediction"].min(),4))
-
-                # =========================
-                # HISTOGRAM
-                # =========================
-
-                st.subheader("Growth Distribution")
-
-                fig1 = px.histogram(
-                    results,
-                    x="Growth Prediction",
-                    nbins=30
-                )
-
-                st.plotly_chart(fig1,use_container_width=True)
-
-                # =========================
-                # BOX PLOT
-                # =========================
-
-                st.subheader("Growth Box Plot")
-
-                fig2 = px.box(
-                    results,
-                    y="Growth Prediction"
-                )
-
-                st.plotly_chart(fig2,use_container_width=True)
 
                 # =========================
                 # PIE CHART
@@ -322,37 +295,19 @@ if page == "Growth Prediction":
 
                 st.subheader("Growth Level Share")
 
-                fig3 = px.pie(
+                fig = px.pie(
                     results,
                     names="Growth Level"
                 )
 
-                st.plotly_chart(fig3,use_container_width=True)
+                st.plotly_chart(fig,use_container_width=True)
 
                 # =========================
-                # TOP GROWTH
-                # =========================
-
-                st.subheader("Top 20 Growth Companies")
-
-                top = results.sort_values(
-                    "Growth Prediction",
-                    ascending=False
-                ).head(20)
-
-                fig4 = px.bar(
-                    top,
-                    x=top.index,
-                    y="Growth Prediction"
-                )
-
-                st.plotly_chart(fig4,use_container_width=True)
-
-                # =========================
-                # RESULTS TABLE
+                # RESULTS
                 # =========================
 
                 st.subheader("Prediction Results")
+
                 st.dataframe(results)
 
                 csv = results.to_csv(index=False).encode("utf-8")
