@@ -283,7 +283,7 @@ if page == "Growth Prediction":
 
                 X = df.copy()
 
-               required = list(growth_imputer.feature_names_in_)
+                required = list(growth_imputer.feature_names_in_)
 
                 # thêm cột còn thiếu
                 for col in required:
