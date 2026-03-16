@@ -293,6 +293,7 @@ if page == "Growth Prediction":
 
                 X = df.copy()
 
+                # đảm bảo đủ feature
                 required = list(growth_imputer.feature_names_in_)
 
                 for col in required:
@@ -301,23 +302,41 @@ if page == "Growth Prediction":
 
                 X = X[required]
 
-                X = growth_imputer.transform(X)
-                X = growth_scaler.transform(X)
+                # xử lý missing + scale
+                X = pd.DataFrame(
+                    growth_imputer.transform(X),
+                    columns=required
+                )
 
-                # reshape cho LSTM
-                if hasattr(growth_model,"expected_3d"):
+                X = pd.DataFrame(
+                    growth_scaler.transform(X),
+                    columns=required
+                )
 
-                    n_years = 4
-                    n_features = int(X.shape[1] / n_years)
+                # -----------------------
+                # RESHAPE CHO LSTM
+                # -----------------------
 
-                    X = X.reshape(len(X),n_years,n_features)
+                y1 = X.loc[:, X.columns.str.startswith("y1__")]
+                y2 = X.loc[:, X.columns.str.startswith("y2__")]
+                y3 = X.loc[:, X.columns.str.startswith("y3__")]
+                y4 = X.loc[:, X.columns.str.startswith("y4__")]
 
-                pred = growth_model.predict(X)
+                X_lstm = np.stack(
+                    [y1.values, y2.values, y3.values, y4.values],
+                    axis=1
+                )
+
+                st.write("LSTM input shape:", X_lstm.shape)
+
+                # predict
+                pred = growth_model.predict(X_lstm)
                 pred = pred.flatten()
 
                 results = df.copy()
                 results["Growth Prediction"] = pred
 
+                # metrics
                 col1,col2,col3 = st.columns(3)
 
                 col1.metric(
@@ -335,9 +354,10 @@ if page == "Growth Prediction":
                     round(results["Growth Prediction"].min(),4)
                 )
 
-                results["Growth Level"] = pd.cut(
+                # phân loại growth
+                results["Growth Level"] = pd.qcut(
                     results["Growth Prediction"],
-                    bins=[0,0.02,0.04,1],
+                    q=3,
                     labels=["Low","Medium","High"]
                 )
 
@@ -351,7 +371,6 @@ if page == "Growth Prediction":
                 st.plotly_chart(fig,use_container_width=True)
 
                 st.subheader("Prediction Results")
-
                 st.dataframe(results)
 
                 csv = results.to_csv(index=False).encode("utf-8")
