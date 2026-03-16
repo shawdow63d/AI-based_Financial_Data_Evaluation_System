@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.express as px
+import re
 from scipy.io import arff
 from io import StringIO
-from tensorflow.keras.models import load_model
 
 st.set_page_config(page_title="AI Financial Dashboard", layout="wide")
 
@@ -40,9 +40,7 @@ st.markdown("""
 
 st.title("AI Financial Analysis Dashboard")
 
-# -------------------------
 # LOAD MODELS
-# -------------------------
 
 @st.cache_resource
 def load_bankruptcy():
@@ -61,17 +59,10 @@ def load_bankruptcy():
 @st.cache_resource
 def load_growth():
     try:
-
-        model = load_model("model_lstm (1).h5")
-
-        # đánh dấu model cần input 3D
-        model.expected_3d = True
-
-        scaler = joblib.load("scaler (1) (1).pkl")
-        imputer = joblib.load("imputer (1).pkl")
-
+        model = joblib.load("model_xgb.pkl")
+        scaler = joblib.load("scaler.pkl")
+        imputer = joblib.load("imputer.pkl")
         return model,scaler,imputer
-
     except:
         return None,None,None
 
@@ -79,9 +70,7 @@ def load_growth():
 bank_model,bank_scaler,bank_imputer,bank_features = load_bankruptcy()
 growth_model,growth_scaler,growth_imputer = load_growth()
 
-# -------------------------
 # SIDEBAR
-# -------------------------
 
 st.sidebar.title("Navigation")
 
@@ -90,13 +79,11 @@ page = st.sidebar.radio(
     ["Bankruptcy Prediction","Growth Prediction"]
 )
 
-# -------------------------
 # BANKRUPTCY
-# -------------------------
 
 if page == "Bankruptcy Prediction":
 
-    st.header("Bankruptcy Risk Prediction")
+    st.header(" Bankruptcy Risk Prediction")
 
     if bank_model is None:
         st.error("bankruptcy_model.pkl not found")
@@ -134,7 +121,7 @@ if page == "Bankruptcy Prediction":
                 results["Prediction"] = np.where(pred==1,"Bankrupt","Safe")
                 results["Risk %"] = (prob*100).round(2)
 
-                col1,col2,col3 = st.columns(3)
+                col1,col2,col3 = st.columns(3, gap="large")
 
                 col1.metric("Total Companies",len(results))
                 col2.metric("Bankrupt Risk",(pred==1).sum())
@@ -217,13 +204,11 @@ if page == "Bankruptcy Prediction":
             except Exception as e:
                 st.error(f"Prediction error: {e}")
 
-# -------------------------
-# GROWTH (LSTM)
-# -------------------------
+# GROWTH
 
 if page == "Growth Prediction":
 
-    st.header("Financial Growth Prediction")
+    st.header(" Financial Growth Prediction")
 
     if growth_model is None:
         st.error("Growth model files missing")
@@ -293,7 +278,6 @@ if page == "Growth Prediction":
 
                 X = df.copy()
 
-                # đảm bảo đủ feature
                 required = list(growth_imputer.feature_names_in_)
 
                 for col in required:
@@ -302,62 +286,25 @@ if page == "Growth Prediction":
 
                 X = X[required]
 
-                # xử lý missing + scale
-                X = pd.DataFrame(
-                    growth_imputer.transform(X),
-                    columns=required
-                )
+                X = growth_imputer.transform(X)
+                X = growth_scaler.transform(X)
 
-                X = pd.DataFrame(
-                    growth_scaler.transform(X),
-                    columns=required
-                )
-
-                # -----------------------
-                # RESHAPE CHO LSTM
-                # -----------------------
-
-                y1 = X.loc[:, X.columns.str.startswith("y1__")]
-                y2 = X.loc[:, X.columns.str.startswith("y2__")]
-                y3 = X.loc[:, X.columns.str.startswith("y3__")]
-                y4 = X.loc[:, X.columns.str.startswith("y4__")]
-
-                X_lstm = np.stack(
-                    [y1.values, y2.values, y3.values, y4.values],
-                    axis=1
-                )
-
-                st.write("LSTM input shape:", X_lstm.shape)
-
-                # predict
-                pred = growth_model.predict(X_lstm)
-                pred = pred.flatten()
+                pred = growth_model.predict(X)
 
                 results = df.copy()
                 results["Growth Prediction"] = pred
 
-                # metrics
-                col1,col2,col3 = st.columns(3)
 
-                col1.metric(
-                    "Average Growth",
-                    round(results["Growth Prediction"].mean(),4)
-                )
+                col1,col2,col3 = st.columns(3, gap="large")
 
-                col2.metric(
-                    "Max Growth",
-                    round(results["Growth Prediction"].max(),4)
-                )
+                col1.metric("Average Growth",round(results["Growth Prediction"].mean(),4))
+                col2.metric("Max Growth",round(results["Growth Prediction"].max(),4))
+                col3.metric("Min Growth",round(results["Growth Prediction"].min(),4))
 
-                col3.metric(
-                    "Min Growth",
-                    round(results["Growth Prediction"].min(),4)
-                )
-
-                # phân loại growth
-                results["Growth Level"] = pd.qcut(
+                
+                results["Growth Level"] = pd.cut(
                     results["Growth Prediction"],
-                    q=3,
+                    bins=[0,0.02,0.04,1],
                     labels=["Low","Medium","High"]
                 )
 
@@ -371,6 +318,7 @@ if page == "Growth Prediction":
                 st.plotly_chart(fig,use_container_width=True)
 
                 st.subheader("Prediction Results")
+
                 st.dataframe(results)
 
                 csv = results.to_csv(index=False).encode("utf-8")
@@ -383,3 +331,6 @@ if page == "Growth Prediction":
 
             except Exception as e:
                 st.error(f"Prediction error: {e}")
+
+
+
