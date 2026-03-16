@@ -62,13 +62,13 @@ def load_bankruptcy():
 def load_growth():
     try:
 
-        model = load_model("model_lstm(1).h5")
+        model = load_model("model_lstm (1).h5")
 
         # đánh dấu model cần input 3D
         model.expected_3d = True
 
-        scaler = joblib.load("scaler(1)(1).pkl")
-        imputer = joblib.load("imputer(1).pkl")
+        scaler = joblib.load("scaler (1) (1).pkl")
+        imputer = joblib.load("imputer (1).pkl")
 
         return model,scaler,imputer
 
